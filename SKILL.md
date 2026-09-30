@@ -1,6 +1,6 @@
 ---
 name: diff-walkthrough
-description: Walk a human through a code diff as a GitHub-style side-by-side HTML page, published as a private Artifact. Groups hunks by logical change, gives each change one short explanation, flags issues inline, and folds trivial edits (imports, renames, lockfiles) into a collapsed Minor section. Use when the user runs /diff-walkthrough, or asks to explain, walk through or visually review a branch, PR or diff.
+description: Walk a human through a code diff as a GitHub-style side-by-side HTML page, published as a private claude.ai Artifact when the host supports it, else saved as a local HTML file. Groups hunks by logical change, gives each change one short explanation, flags issues inline, and folds trivial edits (imports, renames, lockfiles) into a collapsed Minor section. Use when the user runs /diff-walkthrough, or asks to explain, walk through or visually review a branch, PR or diff.
 ---
 
 # Diff walkthrough
@@ -10,7 +10,7 @@ shown side by side beneath it. Minimal text; the diff carries the detail.
 
 ## 1. Get the diff
 
-Argument decides the target; work in a `diff-walkthrough/` folder in the session scratchpad.
+Argument decides the target; work in a `diff-walkthrough/` folder in the session scratchpad (or a temp dir if there is none).
 
 - **None** — current branch vs its base plus uncommitted work. Base from
   `git symbolic-ref refs/remotes/origin/HEAD` (fall back to `main`):
@@ -23,7 +23,7 @@ Save it as `diff.patch`. Empty diff → say so and stop.
 
 ## 2. Plan the changes
 
-Run `python3 ~/.claude/skills/diff-walkthrough/build.py list diff.patch` for the hunk ids
+Run `python3 <skill dir>/build.py list diff.patch` (`<skill dir>` = the folder holding this file) for the hunk ids
 (`path#n`, or bare `path` for a file with no hunks, e.g. binary or pure rename). Read the diff,
 opening surrounding code only where a hunk is unclear.
 
@@ -58,9 +58,14 @@ Rules:
 
 ## 3. Build and publish
 
-1. `python3 ~/.claude/skills/diff-walkthrough/build.py build diff.patch plan.json walkthrough.html`
+1. `python3 <skill dir>/build.py build diff.patch plan.json walkthrough.html`
    — fix `plan.json` and rerun on errors.
-2. Load `artifact-design` (page is pre-built; only the contract matters) and publish
-   `walkthrough.html` with the Artifact tool, icon `code`. Re-running on the same target
-   republishes to the same file path, so the URL stays.
-3. Reply with the link, the change count, and the issues as a short list. Nothing else.
+2. Deliver the page, based on the tools you actually have:
+   - **Artifact tool available** (Claude Code / claude.ai): load `artifact-design` (page is
+     pre-built; only the contract matters) and publish `walkthrough.html` with the Artifact tool,
+     icon `code`. Re-running on the same target republishes to the same file path, so the URL stays.
+   - **Otherwise**: if the host has an equivalent rendered-page feature (canvas, preview pane),
+     use it. Else keep `walkthrough.html` in the working folder (not the repo, or the next run
+     diffs it), open it with `xdg-open` / `open` / `start` if a desktop is present, and give
+     its absolute path.
+3. Reply with the link or path, the change count, and the issues as a short list. Nothing else.
