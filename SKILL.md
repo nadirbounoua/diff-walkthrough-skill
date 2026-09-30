@@ -1,0 +1,66 @@
+---
+name: diff-walkthrough
+description: Walk a human through a code diff as a GitHub-style side-by-side HTML page, published as a private Artifact. Groups hunks by logical change, gives each change one short explanation, flags issues inline, and folds trivial edits (imports, renames, lockfiles) into a collapsed Minor section. Use when the user runs /diff-walkthrough, or asks to explain, walk through or visually review a branch, PR or diff.
+---
+
+# Diff walkthrough
+
+Output is one page a reviewer reads top to bottom: each change explained once, its code
+shown side by side beneath it. Minimal text; the diff carries the detail.
+
+## 1. Get the diff
+
+Argument decides the target; work in a `diff-walkthrough/` folder in the session scratchpad.
+
+- **None** — current branch vs its base plus uncommitted work. Base from
+  `git symbolic-ref refs/remotes/origin/HEAD` (fall back to `main`):
+  `git diff $(git merge-base origin/<base> HEAD)`, then append each untracked file with
+  `git diff --no-index /dev/null <file>` (from `git ls-files --others --exclude-standard`).
+- **PR number** — `gh pr diff <n>`.
+- **Range** (`a..b`, `a...b`, a sha) — `git diff <range>`.
+
+Save it as `diff.patch`. Empty diff → say so and stop.
+
+## 2. Plan the changes
+
+Run `python3 ~/.claude/skills/diff-walkthrough/build.py list diff.patch` for the hunk ids
+(`path#n`, or bare `path` for a file with no hunks, e.g. binary or pure rename). Read the diff,
+opening surrounding code only where a hunk is unclear.
+
+Write `plan.json`:
+
+```json
+{
+  "title": "feature/x walkthrough",
+  "target": "`feature/x` vs `main` · 12 files",
+  "summary": "One or two sentences: what the diff does overall.",
+  "changes": [
+    {"title": "Retry failed webhooks", "explain": "…", "issues": ["…"], "hunks": ["src/a.go#2", "src/b.go"]}
+  ],
+  "minor": [{"title": "Unused imports removed", "hunks": ["src/a.go#1"]}],
+  "skipped": [{"file": "package-lock.json", "text": "updated"}]
+}
+```
+
+Rules:
+
+- **One change = one intent.** Hunks serving the same change share one entry and one explanation,
+  across files. Order changes so each reads after what it depends on (core logic before callers,
+  code before tests).
+- **`explain`**: 1–3 short sentences — what it does and why, not a line-by-line retelling.
+  Backticks for identifiers.
+- **`issues`**: likely bugs, missing handling, risky or inconsistent code, leftover debug.
+  One line each, concrete. Omit the key when there are none; never pad.
+- **`minor`**: imports, renames, formatting, comments, trivial tweaks — title only, no `explain`.
+  Promote to `changes` when it matters (e.g. a new dependency).
+- **`skipped`**: lockfiles, generated code, snapshots, binaries — one line, no diff.
+- Every hunk must be in exactly one place; the build fails on unassigned or unknown ids.
+
+## 3. Build and publish
+
+1. `python3 ~/.claude/skills/diff-walkthrough/build.py build diff.patch plan.json walkthrough.html`
+   — fix `plan.json` and rerun on errors.
+2. Load `artifact-design` (page is pre-built; only the contract matters) and publish
+   `walkthrough.html` with the Artifact tool, icon `code`. Re-running on the same target
+   republishes to the same file path, so the URL stays.
+3. Reply with the link, the change count, and the issues as a short list. Nothing else.
